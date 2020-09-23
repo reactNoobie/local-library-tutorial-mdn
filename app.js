@@ -13,7 +13,10 @@ var catalogRouter = require('./routes/catalog');
 var app = express();
 // Set up mongoose connection
 var mongoose = require('mongoose');
-var mongoDB = 'mongodb+srv://admin:123@local-library-tutorial.8qc62.gcp.mongodb.net/local_library_tutorial?retryWrites=true&w=majority';
+
+require('dotenv').config();
+var mongoDB = process.env.MONGO_DB_URL;
+
 mongoose.connect(mongoDB, { useNewUrlParser: true, useUnifiedTopology: true });
 var db = mongoose.connection;
 db.on('error', console.error.bind(console, 'MongoDB connection error:'));
