@@ -1,4 +1,7 @@
+var async = require('async');
+
 var Author = require('../models/author');
+var Book = require('../models/book');
 
 // Display list of all Authors
 exports.author_list = function (req, res, next) {
@@ -13,8 +16,27 @@ exports.author_list = function (req, res, next) {
 };
 
 // Display detail page for specific Author
-exports.author_detail = function (req, res) {
-	res.send(`TODO: Author detail: ${req.params.id}`);
+exports.author_detail = function (req, res, next) {
+	async.parallel({
+		author: function (callback) {
+			Author.findById(req.params.id)
+				.exec(callback);
+		},
+		author_books: function (callback) {
+			Book.find({ 'author': req.params.id })
+				.exec(callback);
+		},
+	}, function (err, results) {
+		if (err) {
+			return next(err);
+		}
+		if (results.author == null) {
+			var error = new Error('Author not found!');
+			error.status = 404;
+			return next(error);
+		}
+		res.render('author_detail', { title: 'Author detail', author: results.author, author_books: results.author_books });
+	});
 };
 
 // Display Author create form on GET
