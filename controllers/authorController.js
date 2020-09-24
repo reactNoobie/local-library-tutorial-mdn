@@ -1,3 +1,4 @@
+var validator = require('express-validator');
 var async = require('async');
 
 var Author = require('../models/author');
@@ -41,13 +42,46 @@ exports.author_detail = function (req, res, next) {
 
 // Display Author create form on GET
 exports.author_create_get = function (req, res) {
-	res.send('TODO: Author create GET');
+	res.render('author_form', { title: 'Create Author' });
 };
 
 // Handle Author create on POST
-exports.author_create_post = function (req, res) {
-	res.send('TODO: Author create POST');
-};
+exports.author_create_post = [
+	// Validate data
+	validator.body('first_name').isLength({ min: 1 }).trim().withMessage('First name can not be empty')
+		.isAlpha().withMessage('First name must contain letters only'),
+	validator.body('family_name').isLength({ min: 1 }).trim().withMessage('Family name can not be empty')
+		.isAlpha().withMessage('Family name must contain letters only'),
+	validator.body('date_of_birth').optional({ checkFalsy: true }).isISO8601().withMessage('Invalid date of birth'),
+	validator.body('date_of_death').optional({ checkFalsy: true }).isISO8601().withMessage('Invalid date of death'),
+
+	// Sanitize
+	validator.sanitizeBody('first_name').escape(),
+	validator.sanitizeBody('family_name').escape(),
+	validator.sanitizeBody('date_of_birth').toDate(),
+	validator.sanitizeBody('date_of_death').toDate(),
+
+	// Process request
+	function (req, res, next) {
+		var errors = validator.validationResult(req);
+		if (!errors.isEmpty()) {
+			res.render('author_form', { title: 'Create Author', author: req.body, errors: errors.array() });
+		} else {
+			var author = new Author({
+				first_name: req.body.first_name,
+				family_name: req.body.family_name,
+				date_of_birth: req.body.date_of_birth,
+				date_of_death: req.body.date_of_death
+			});
+			author.save(function (err) {
+				if (err) {
+					return next(err);
+				}
+				res.redirect(author.url);
+			});
+		}
+	}
+];
 
 // Display Author delete form on GET
 exports.author_delete_get = function (req, res) {
@@ -68,4 +102,3 @@ exports.author_update_get = function (req, res) {
 exports.author_update_post = function (req, res) {
 	res.send('TODO: Author update POST');
 };
-

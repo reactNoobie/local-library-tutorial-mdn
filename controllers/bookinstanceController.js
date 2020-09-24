@@ -1,4 +1,6 @@
+var validator = require('express-validator');
 var BookInstance = require('../models/bookinstance');
+var Book = require('../models/book');
 
 // Display list of all BookInstances.
 exports.bookinstance_list = function (req, res, next) {
@@ -30,14 +32,58 @@ exports.bookinstance_detail = function (req, res, next) {
 };
 
 // Display BookInstance create form on GET.
-exports.bookinstance_create_get = function (req, res) {
-    res.send('NOT IMPLEMENTED: BookInstance create GET');
+exports.bookinstance_create_get = function (req, res, next) {
+    Book.find()
+        .exec(function (err, book_list) {
+            if (err) {
+                return next(err);
+            }
+            res.render('bookinstance_form', { title: 'Create Book Instance', book_list: book_list });
+        });
 };
 
 // Handle BookInstance create on POST.
-exports.bookinstance_create_post = function (req, res) {
-    res.send('NOT IMPLEMENTED: BookInstance create POST');
-};
+exports.bookinstance_create_post = [
+    // Validate
+    validator.body('book').trim().isLength({ min: 1 }).withMessage('Book must be specified'),
+    validator.body('imprint').trim().isLength({ min: 1 }).withMessage('Please specify an imprint'),
+    validator.body('due_back').isISO8601().withMessage('Please specify a valid date'),
+
+    // Sanitize
+    validator.sanitizeBody('book').escape(),
+    validator.sanitizeBody('imprint').escape(),
+    validator.sanitizeBody('status').trim().escape(),
+    validator.sanitizeBody('due_back').toDate(),
+
+    // Process
+    function (req, res, next) {
+        var bookInstance = new BookInstance({
+            book: req.body.book,
+            imprint: req.body.imprint,
+            status: req.body.status,
+            due_back: req.body.due_back
+        });
+        var errors = validator.validationResult(req);
+        if (!errors.isEmpty()) {
+            Book.find().exec(function (error, book_list) {
+                res.render('bookinstance_form', {
+                    title: 'Create Book Instance',
+                    bookinstance: bookInstance,
+                    book_list: book_list,
+                    selected_book: bookInstance.book._id,
+                    errors: errors.array()
+                });
+            });
+        } else {
+            bookInstance.save(function (err) {
+                if (err) {
+                    return next(err);
+                }
+                res.redirect(bookInstance.url);
+            });
+        }
+    }
+];
 
 // Display BookInstance delete form on GET.
 exports.bookinstance_delete_get = function (req, res) {

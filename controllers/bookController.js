@@ -1,3 +1,4 @@
+var validator = require('express-validator');
 var Book = require('../models/book');
 var Author = require('../models/author');
 var Genre = require('../models/genre');
@@ -67,14 +68,86 @@ exports.book_detail = function (req, res, next) {
 };
 
 // Display book create form on GET.
-exports.book_create_get = function (req, res) {
-	res.send('NOT IMPLEMENTED: Book create GET');
+exports.book_create_get = function (req, res, next) {
+	async.parallel({
+		authors: function (callback) {
+			Author.find(callback);
+		},
+		genres: function (callback) {
+			Genre.find(callback);
+		}
+	}, function (err, results) {
+		if (err) {
+			return next(err);
+		}
+		res.render('book_form', { title: 'Create Book', authors: results.authors, genres: results.genres });
+	});
 };
 
 // Handle book create on POST.
-exports.book_create_post = function (req, res) {
-	res.send('NOT IMPLEMENTED: Book create POST');
-};
+exports.book_create_post = [
+	// Convert genre to array (as genre is declared as array in the book schema)
+	function (req, res, next) {
+		if (!(req.body.genre instanceof Array)) {
+			if (req.body.genre !== undefined) {
+				req.body.genre = new Array(req.body.genre);
+			} else {
+				req.body.genre = [];
+			}
+		}
+		console.log('Soumik: ', req.body.genre);
+		next();
+	},
+
+	// Validate
+	validator.body('title').trim().isLength({ min: 1 }).withMessage('Title can not be empty'),
+	validator.body('author').trim().isLength({ min: 1 }).withMessage('Author can not be empty'),
+	validator.body('summary').trim().isLength({ min: 1 }).withMessage('Summary can not be empty'),
+	validator.body('isbn').trim().isLength({ min: 1 }).withMessage('ISBN can not be empty'),
+
+	// Sanitize
+	validator.sanitizeBody('title').escape(),
+	validator.sanitizeBody('author').escape(),
+	validator.sanitizeBody('summary').escape(),
+	validator.sanitizeBody('isbn').escape(),
+	validator.sanitizeBody('genre.*').escape(),
+
+	// Process request
+	function (req, res, next) {
+		var book = new Book({
+			title: req.body.title,
+			author: req.body.author,
+			summary: req.body.summary,
+			isbn: req.body.isbn,
+			genre: req.body.genre
+		});
+		var errors = validator.validationResult(req);
+		if (!errors.isEmpty()) {
+			async.parallel({
+				authors: function (callback) {
+					Author.find(callback);
+				},
+				genres: function (callback) {
+					Genre.find(callback);
+				}
+			}, function (err, results) {
+				if (err) {
+					return next(err);
+				} else {
+					results.genres.forEach(genre => genre.checked = book.genre.includes(genre._id));
+					res.render('book_form', { title: 'Create Book', book: book, authors: results.authors, genres: results.genres, errors: errors.array() });
+				}
+			});
+		} else {
+			book.save(function (err) {
+				if (err) {
+					return next(err);
+				}
+				res.redirect(book.url);
+			});
+		}
+	}
+];
 
 // Display book delete form on GET.
 exports.book_delete_get = function (req, res) {
