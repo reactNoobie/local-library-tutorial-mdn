@@ -1,3 +1,5 @@
+var moment = require('moment');
+
 var mongoose = require('mongoose');
 
 var Schema = mongoose.Schema;
@@ -26,7 +28,23 @@ AuthorSchema
 AuthorSchema
 .virtual('lifespan')
 .get(function () {
-    return (this.date_of_death.getYear() - this.date_of_death.getYear()).toString();
+    return `${this.date_of_birth ? moment(this.date_of_birth).format('MMMM Do, YYYY') : ''}
+    -
+    ${this.date_of_death ? moment(this.date_of_death).format('MMMM Do, YYYY') : ''}`;
+});
+
+AuthorSchema
+.virtual('date_of_birth_yyyy_mm_dd')
+.get(function () {
+    console.log('Soumik: date of birth - ', moment(this.date_of_birth).format('yyyy-MM-DD'));
+    return this.date_of_birth ? moment(this.date_of_birth).format('yyyy-MM-DD') : null;
+});
+
+AuthorSchema
+.virtual('date_of_death_yyyy_mm_dd')
+.get(function () {
+    console.log('Soumik: date of death - ', moment(this.date_of_death).format('yyyy-MM-DD'));
+    return this.date_of_death ? moment(this.date_of_death).format('yyyy-MM-DD') : null;
 });
 
 // Virtual for author's url
