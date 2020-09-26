@@ -63,16 +63,16 @@ exports.author_create_post = [
 
 	// Process request
 	function (req, res, next) {
+		var author = new Author({
+			first_name: req.body.first_name,
+			family_name: req.body.family_name,
+			date_of_birth: req.body.date_of_birth,
+			date_of_death: req.body.date_of_death
+		});
 		var errors = validator.validationResult(req);
 		if (!errors.isEmpty()) {
-			res.render('author_form', { title: 'Create Author', author: req.body, errors: errors.array() });
+			res.render('author_form', { title: 'Create Author', author: author, errors: errors.array() });
 		} else {
-			var author = new Author({
-				first_name: req.body.first_name,
-				family_name: req.body.family_name,
-				date_of_birth: req.body.date_of_birth,
-				date_of_death: req.body.date_of_death
-			});
 			author.save(function (err) {
 				if (err) {
 					return next(err);
@@ -131,11 +131,54 @@ exports.author_delete_post = function (req, res, next) {
 };
 
 // Display Author update form on GET
-exports.author_update_get = function (req, res) {
-	res.send('TODO: Author update GET');
+exports.author_update_get = function (req, res, next) {
+	Author.findById(req.params.id)
+		.exec(function (err, author) {
+			if (err) {
+				return next(err);
+			}
+			if (author === null) {
+				var error = new Error('Author not found');
+				error.status = 404;
+				return next(error);
+			}
+			res.render('author_form', { title: 'Update Author', author: author });
+		});
 };
 
 // Handle Author update on POST
-exports.author_update_post = function (req, res) {
-	res.send('TODO: Author update POST');
-};
+exports.author_update_post = [
+	// Validate
+	validator.body('first_name').trim().isLength({ min: 2 }).withMessage('First name must have at least 2 letters'),
+	validator.body('family_name').trim().isLength({ min: 2 }).withMessage('Family name must have at least 2 letters'),
+	validator.body('date_of_birth').optional({ checkFalsy: true }).isISO8601().withMessage('Invalid date'),
+	validator.body('date_of_death').optional({ checkFalsy: true }).isISO8601().withMessage('Invalid date'),
+
+	// Sanitize
+	validator.sanitizeBody('first_name').escape(),
+	validator.sanitizeBody('family_name').escape(),
+	validator.sanitizeBody('date_of_birth').escape(),
+	validator.sanitizeBody('date_of_death').escape(),
+
+	// Process
+	function (req, res, next) {
+		var author = new Author({
+			first_name: req.body.first_name,
+			family_name: req.body.family_name,
+			date_of_birth: req.body.date_of_birth,
+			date_of_death: req.body.date_of_death,
+			_id: req.params.id
+		});
+		var errors = validator.validationResult(req);
+		if (!errors.isEmpty()) {
+			res.render('author_form', { title: 'Update Author', author: author, errors: errors.array() });
+		} else {
+			Author.findByIdAndUpdate(req.params.id, author, {}, function (err, updated_author) {
+				if (err) {
+					return next(err);
+				}
+				res.redirect(updated_author.url);
+			});
+		}
+	}
+];

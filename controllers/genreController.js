@@ -130,11 +130,46 @@ exports.genre_delete_post = function (req, res, next) {
 };
 
 // Display Genre update form on GET.
-exports.genre_update_get = function (req, res) {
-    res.send('NOT IMPLEMENTED: Genre update GET');
+exports.genre_update_get = function (req, res, next) {
+    Genre.findById(req.params.id).exec(function (err, genre) {
+        if (err) {
+            return next(err);
+        }
+        if (genre === null) {
+            var error = new Error('Genre not found');
+            error.status = 404;
+            return next(error);
+        }
+        res.render('genre_form', { title: 'Update Genre', genre: genre });
+    });
 };
 
 // Handle Genre update on POST.
-exports.genre_update_post = function (req, res) {
-    res.send('NOT IMPLEMENTED: Genre update POST');
-};
+exports.genre_update_post = [
+    validator.body('name').trim().isLength({ min: 2 }).withMessage('Genre name must contain at least 2 characters'),
+    validator.sanitizeBody('name').escape(),
+    function (req, res, next) {
+        var genre = new Genre({ name: req.body.name, _id: req.params.id });
+        var errors = validator.validationResult(req);
+        if (!errors.isEmpty()) {
+            res.render('genre_form', { title: 'Update Genre', genre: genre, errors: errors.array() });
+        } else {
+            Genre.findOne({ 'name': req.body.name })
+                .exec(function (err, found_genre) {
+                    if (err) {
+                        return next(err);
+                    }
+                    if (found_genre) {
+                        res.render('genre_form', { title: 'Update Genre', genre: genre, errors: [{ msg: 'Genre name already exists' }] });
+                    } else {
+                        Genre.findByIdAndUpdate(req.params.id, genre, {}, function (err, updated_genre) {
+                            if (err) {
+                                return next(err);
+                            }
+                            res.redirect(updated_genre.url);
+                        });
+                    }
+                });
+        }
+    }
+];

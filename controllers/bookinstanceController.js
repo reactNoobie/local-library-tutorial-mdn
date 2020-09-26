@@ -1,3 +1,4 @@
+var async = require('async');
 var validator = require('express-validator');
 var BookInstance = require('../models/bookinstance');
 var Book = require('../models/book');
@@ -112,11 +113,68 @@ exports.bookinstance_delete_post = function (req, res) {
 };
 
 // Display BookInstance update form on GET.
-exports.bookinstance_update_get = function (req, res) {
-    res.send('NOT IMPLEMENTED: BookInstance update GET');
+exports.bookinstance_update_get = function (req, res, next) {
+    async.parallel({
+        bookinstance: function (callback) {
+            BookInstance.findById(req.params.id).exec(callback);
+        },
+        book_list: function (callback) {
+            Book.find().exec(callback);
+        }
+    }, function (err, results) {
+        if (err) {
+            return next(err);
+        }
+        res.render('bookinstance_form', {
+            title: 'Update Book Instance',
+            bookinstance: results.bookinstance,
+            book_list: results.book_list,
+        });
+    });
 };
 
 // Handle bookinstance update on POST.
-exports.bookinstance_update_post = function (req, res) {
-    res.send('NOT IMPLEMENTED: BookInstance update POST');
-};
+exports.bookinstance_update_post = [
+    // Validate
+    validator.body('book').trim().isLength({ min: 1 }).withMessage('Book must be specified'),
+    validator.body('imprint').trim().isLength({ min: 1 }).withMessage('Please specify an imprint'),
+    validator.body('due_back').isISO8601().withMessage('Please specify a valid date'),
+
+    // Sanitize
+    validator.sanitizeBody('book').escape(),
+    validator.sanitizeBody('imprint').escape(),
+    validator.sanitizeBody('status').trim().escape(),
+    validator.sanitizeBody('due_back').toDate(),
+
+    // Process
+    function (req, res, next) {
+        var bookInstance = new BookInstance({
+            book: req.body.book,
+            imprint: req.body.imprint,
+            status: req.body.status,
+            due_back: req.body.due_back,
+            _id: req.params.id
+        });
+        var errors = validator.validationResult(req);
+        if (!errors.isEmpty()) {
+            Book.find().exec(function (err, book_list) {
+                if (err) {
+                    return next(err);
+                }
+                res.render('bookinstance_form', {
+                    title: 'Book Instance Update',
+                    bookinstance: bookInstance,
+                    book_list: book_list,
+                    errors: errors.array()
+                });
+            });
+        } else {
+            BookInstance.findByIdAndUpdate(req.params.id, bookInstance, {}, function (err, book_instance) {
+                if (err) {
+                    return next(err);
+                }
+                res.redirect(book_instance.url);
+            });
+        }
+    }
+];
